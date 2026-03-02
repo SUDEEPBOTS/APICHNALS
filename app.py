@@ -37,7 +37,8 @@ def proxy_tv():
             new_lines = []
             
             # Apne server ka main base URL nikal rahe hain (e.g., https://apiinews...herokuapp.com)
-            host_url = request.host_url.rstrip('/')
+            host_url = request.host_url.rstrip('/').replace("http://", "https://")
+            
             
             for line in lines:
                 # Agar line comment (#) nahi hai aur khali nahi hai, toh wo ek link hai
