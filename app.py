@@ -1,5 +1,6 @@
 import os
 import requests
+import urllib.parse
 from urllib.parse import urljoin
 from flask import Flask, request, Response
 
@@ -10,7 +11,7 @@ app = Flask(__name__)
 def home():
     return "🚀 HellfireDevs Proxy Server is Running 24/7!"
 
-# 📺 2. MAIN DYNAMIC STREAM ROUTE (Smart M3U8 Rewriter)
+# 📺 2. MAIN DYNAMIC STREAM ROUTE (Ultimate M3U8 Rewriter)
 @app.route('/stream')
 def proxy_tv():
     target_url = request.args.get('url')
@@ -30,23 +31,31 @@ def proxy_tv():
         content_type = req.headers.get('content-type', '')
 
         # 🔥 SMART REWRITER LOGIC 🔥
-        # Agar ye m3u8 playlist hai, toh iske andar ke relative chunks ko absolute URLs banayenge
-        if ".m3u8" in target_url or "mpegurl" in content_type.lower():
+        # Agar ye m3u8 playlist hai, toh iske andar ke links ko wapas Heroku proxy mein wrap karenge
+        if "m3u8" in target_url.lower() or "mpegurl" in content_type.lower() or req.text.startswith("#EXTM3U"):
             lines = req.text.splitlines()
             new_lines = []
+            
+            # Apne server ka main base URL nikal rahe hain (e.g., https://apiinews...herokuapp.com)
+            host_url = request.host_url.rstrip('/')
+            
             for line in lines:
                 # Agar line comment (#) nahi hai aur khali nahi hai, toh wo ek link hai
                 if line.strip() and not line.startswith("#"):
-                    # Relative link ko poore Aaj Tak ke link mein convert karo
+                    # 1. Poora (absolute) link nikalo Akamai/Aaj Tak ka
                     abs_url = urljoin(target_url, line.strip())
-                    new_lines.append(abs_url)
+                    # 2. Usko encode karo taaki proxy link mein fit baith sake
+                    safe_url = urllib.parse.quote(abs_url, safe='')
+                    # 3. Us Akamai link ko wapas apne proxy URL ke andar daal do!
+                    proxy_url = f"{host_url}/stream?url={safe_url}"
+                    new_lines.append(proxy_url)
                 else:
                     new_lines.append(line)
                     
             modified_m3u8 = "\n".join(new_lines)
             return Response(modified_m3u8, content_type="application/vnd.apple.mpegurl")
             
-        # Agar direct TS chunk ya koi aur media hai, toh normally pass kardo
+        # Agar direct TS chunk ya koi aur media hai, toh seedha Aaj Tak se utha kar FFMPEG ko dedo
         return Response(req.iter_content(chunk_size=1024), content_type=content_type)
         
     except Exception as e:
@@ -55,7 +64,7 @@ def proxy_tv():
 # 🛠️ 3. TEST ENDPOINT
 @app.route('/test')
 def test_player():
-    test_url = "/stream?url=https://feeds.intoday.in/aajtak/api/master.m3u8"
+    test_url = "/stream?url=https%3A%2F%2Ffeeds.intoday.in%2Faajtak%2Fapi%2Fmaster.m3u8"
     html_page = f"""
     <!DOCTYPE html>
     <html>
@@ -89,3 +98,4 @@ def test_player():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+    
